@@ -19,7 +19,9 @@ const RoomPanel = (): JSX.Element => {
         );
     }
 
-    const src = `/plugins/com.aegis.agora/public/room/index.html?channel=${encodeURIComponent(channelId)}`;
+    // Served as room.html (NOT index.html): Mattermost's plugin static server redirects
+    // `/index.html` → the directory and then 404s the dir listing, so a non-index name is required.
+    const src = `/plugins/com.aegis.agora/public/room/room.html?channel=${encodeURIComponent(channelId)}`;
     return (
         <iframe
             title='Agora Voice Room'

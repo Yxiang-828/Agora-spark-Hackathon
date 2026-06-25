@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voice Room</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #14171e; font-family: ui-sans-serif, system-ui, sans-serif; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #hud {
+    position: fixed; left: 14px; top: 14px; z-index: 10;
+    background: rgba(20,23,30,.72); backdrop-filter: blur(8px);
+    border: 1px solid rgba(150,170,255,.22); border-radius: 14px;
+    padding: 12px 14px; min-width: 210px; color: #e8ecff;
+  }
+  #hud h1 { font-size: 13px; margin: 0 0 8px; letter-spacing: .5px; color: #aebcff; font-weight: 600; }
+  #me { font-size: 12px; opacity: .8; margin-bottom: 10px; }
+  #me b { color: #8effc1; }
+  .btn { display: block; width: 100%; margin: 6px 0; padding: 9px 10px; cursor: pointer;
+    border-radius: 10px; border: 1px solid rgba(150,170,255,.3); background: #1c2030; color: #e8ecff;
+    font-size: 13px; font-weight: 600; }
+  #talk.on { background: #1f7a4d; border-color: #2fe089; }
+  #talk.on::before { content: '🎙 '; } #talk::before { content: '🔇 '; }
+  .hint { font-size: 11px; opacity: .55; line-height: 1.5; margin-top: 8px; }
+  #roster { font-size: 12px; margin-top: 8px; }
+  .row { display: flex; align-items: center; gap: 7px; padding: 3px 0; opacity: .5; }
+  .row.live { opacity: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: none; }
+  .row.speaking .dot { background: #2fe089; box-shadow: 0 0 8px #2fe089; }
+  #status { position: fixed; right: 14px; bottom: 12px; font: 11px ui-monospace, monospace; color: #8a93a6; z-index: 10; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <h1>VOICE ROOM</h1>
+  <div id="me">you are <b id="who">connecting…</b></div>
+  <button id="talk" class="btn">push to talk</button>
+  <div class="hint">Talk → you stand & can move (click the floor). Stop → you sit. Others hear you spatially.</div>
+  <div id="roster"></div>
+</div>
+<div id="status">booting…</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

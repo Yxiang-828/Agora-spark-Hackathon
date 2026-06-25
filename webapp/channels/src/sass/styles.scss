@@ -1,5 +1,9 @@
 @use "sass:meta";
 
+// Pixel fonts for the Agora "Neon Pixel" theme (best-effort; falls back to monospace if the
+// network/CSP blocks it). Kept as a leading CSS @import so it stays a valid import position.
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
 // Dependencies
 @import '~bootstrap/dist/css/bootstrap.css';
 @import '~font-awesome/css/font-awesome.css';

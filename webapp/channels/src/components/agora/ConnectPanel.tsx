@@ -19,6 +19,15 @@ const AGENTS = [
     {id: 'gemini', name: 'Gemini', desc: 'Google Gemini — deprecated (rate-limited; prefer Antigravity)', need: 'install the `gemini` CLI, then run `gemini` once to log in (or set GEMINI_API_KEY)'},
 ];
 
+// Per-engine model choices. 'default' = let the CLI use its own configured default. The pick rides
+// along to the connector in the bundle (model=<agentId>=<model>) so each agent runs the chosen model.
+const MODELS: Record<string, string[]> = {
+    claude: ['default', 'opus', 'sonnet', 'haiku'],
+    codex: ['default', 'gpt-5-codex', 'o4-mini'],
+    antigravity: ['default', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    gemini: ['default', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+};
+
 const CSS = `
 .agora-cx { padding:16px; font-size:14px; color:var(--center-channel-color); height:100%;
   overflow-y:auto; box-sizing:border-box; }
@@ -68,6 +77,7 @@ const CSS = `
 const ConnectPanel = () => {
     const [picked, setPicked] = useState<Record<string, boolean>>({claude: true, codex: true, antigravity: true});
     const [workdirs, setWorkdirs] = useState<Record<string, string>>({});
+    const [models, setModels] = useState<Record<string, string>>({});
     const [code, setCode] = useState('');
     const [connected, setConnected] = useState(false);
     const [expired, setExpired] = useState(false);
@@ -169,6 +179,10 @@ const ConnectPanel = () => {
             if (picked[a.id] && wd) {
                 params.append('workdir', `${a.id}=${wd}`);
             }
+            const m = models[a.id];
+            if (picked[a.id] && m && m !== 'default') {
+                params.append('model', `${a.id}=${m}`);
+            }
         });
         apiFetch(`${API}/connector/bundle?${params.toString()}`).
             then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`)))).
@@ -250,6 +264,21 @@ const ConnectPanel = () => {
                     </label>
                     {picked[a.id] && (
                         <>
+                            {MODELS[a.id] && (
+                                <label style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12}}>
+                                    <span style={{opacity: 0.7, flex: 'none'}}>{'Model'}</span>
+                                    <select
+                                        className='agora-cx__wd'
+                                        style={{marginTop: 0, cursor: 'pointer'}}
+                                        value={models[a.id] || 'default'}
+                                        onChange={(e) => setModels({...models, [a.id]: e.target.value})}
+                                    >
+                                        {MODELS[a.id].map((m) => (
+                                            <option key={m} value={m}>{m === 'default' ? 'Default (CLI’s own)' : m}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                             <input
                                 className='agora-cx__wd'
                                 placeholder={isWin ? 'workspace folder (optional) — e.g. C:\\Users\\me\\project' : 'workspace folder (optional) — e.g. /home/me/project'}

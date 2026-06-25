@@ -1,0 +1,242 @@
+// Agora — Neon Pixel theme: a TOTAL theme layer. Every container, font, and surface is restyled
+// when body.agora-theme-pixel is set (by utils.applyTheme). Colours come from Preferences.THEMES
+// .neonPixel; this file adds the retro-arcade aesthetic on top: pixel fonts everywhere, neon
+// outlines/glow on every container, sharp edges, neon scrollbars, scanline overlay.
+//
+// Container "borders" use inset box-shadow (not `border`) so nothing shifts layout. Icon glyph
+// fonts (compass-icons on ::before, FontAwesome on .fa) are re-asserted defensively after the
+// global font override.
+
+$pixel-body: 'VT323', 'Courier New', monospace;
+$pixel-display: 'Press Start 2P', 'VT323', 'Courier New', monospace;
+$neon-cyan: #00e5ff;
+$neon-magenta: #ff2e97;
+$neon-green: #39ff14;
+$cyan-line: rgba(0, 229, 255, 0.2);
+$cyan-glow: rgba(0, 229, 255, 0.08);
+$magenta-glow: rgba(255, 46, 151, 0.6);
+
+// neon outline helper (no layout shift)
+@mixin neon-panel($a: 0.2, $glow: 0.07) {
+    box-shadow: inset 0 0 0 1px rgba(0, 229, 255, $a), 0 0 14px rgba(0, 229, 255, $glow);
+}
+
+body.agora-theme-pixel {
+    // ---- FONTS: pixel everywhere -------------------------------------------------
+    &,
+    * {
+        font-family: $pixel-body !important;
+        letter-spacing: 0.3px;
+    }
+
+    // blocky arcade display font for brand / headings / titles / our tab strip
+    h1, h2, h3, h4,
+    .channel-header__title .heading,
+    .channel-header .channel-header__top .heading,
+    .SidebarHeader .title,
+    .team__name,
+    .agora-ws__brand,
+    .agora-channel-tabs__label,
+    .post-create__container .style--none,
+    .GenericModal__header h1,
+    .modal-title {
+        font-family: $pixel-display !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    // re-assert icon glyph fonts (defensive — specificity already protects ::before)
+    .icon,
+    [class^='icon-'],
+    [class*=' icon-'],
+    [class^='icon-']::before,
+    [class*=' icon-']::before,
+    .CompassIcon::before {
+        font-family: 'compass-icons' !important;
+    }
+    .fa,
+    [class^='fa-'],
+    [class*=' fa-'] {
+        font-family: 'FontAwesome' !important;
+    }
+
+    // ---- SHARP EDGES + pixel raster ---------------------------------------------
+    *,
+    *::before,
+    *::after {
+        border-radius: 0 !important;
+    }
+    .Avatar,
+    .emoticon,
+    .profile-icon img,
+    img.Avatar {
+        image-rendering: pixelated;
+    }
+
+    // ---- CONTAINERS: neon outline + glow on every surface -----------------------
+    .team-sidebar,
+    #SidebarContainer,
+    .sidebar--left,
+    .app__content,
+    .channel-header,
+    .post-create__container,
+    .AdvancedTextEditor,
+    .sidebar--right,
+    .sidebar-right__body,
+    .search-bar__container,
+    .SearchBox,
+    .modal-content,
+    .GenericModal__wrapper-enter-key-press-catcher,
+    .Menu__content,
+    .dropdown-menu,
+    .a11y__popup,
+    .tooltip-inner,
+    .channel-intro,
+    .post.current--user .post__content,
+    .more-modal__list,
+    .EmojiPicker,
+    .AppBar,
+    .SidebarChannelGroup,
+    .ThreadPane,
+    .RhsRootPortal {
+        @include neon-panel();
+    }
+
+    // composer + inputs: terminal frame, cyan glow on focus
+    .form-control,
+    input[type='text'],
+    input[type='password'],
+    input[type='email'],
+    input[type='search'],
+    textarea,
+    select,
+    #post_textbox,
+    .AdvancedTextEditor__body {
+        box-shadow: inset 0 0 0 1px $cyan-line !important;
+
+        &:focus,
+        &:focus-within {
+            box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.55), 0 0 10px $cyan-glow !important;
+            outline: none;
+        }
+    }
+
+    // ---- BUTTONS: neon magenta primaries, cyan ghosts ---------------------------
+    .btn.btn-primary,
+    button.btn-primary,
+    .save-button,
+    .SaveButton,
+    .agora-ws__navbtn.is-active {
+        border: 2px solid $neon-magenta !important;
+        box-shadow: 0 0 8px $magenta-glow, inset 0 0 6px rgba(255, 46, 151, 0.25) !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .btn.btn-tertiary,
+    .btn-tertiary,
+    .style--none.btn {
+        box-shadow: inset 0 0 0 1px $cyan-line;
+    }
+
+    // ---- LINKS / NAV / ACTIVE GLOW ----------------------------------------------
+    a,
+    .SidebarLink.active .SidebarChannelLinkLabel,
+    .post-message .markdown__link {
+        text-shadow: 0 0 6px rgba(0, 229, 255, 0.7);
+    }
+    .SidebarChannel.active .SidebarLink {
+        box-shadow: inset 3px 0 0 $neon-magenta, 0 0 10px rgba(255, 46, 151, 0.22);
+    }
+
+    // team sidebar buttons: arcade tiles
+    .team-sidebar .team-btn {
+        box-shadow: inset 0 0 0 1px $cyan-line;
+
+        &.active,
+        &:hover {
+            box-shadow: inset 0 0 0 2px $neon-cyan, 0 0 10px $cyan-glow;
+        }
+    }
+
+    // ---- BADGES / MENTIONS / STATUS ---------------------------------------------
+    .badge,
+    .MentionBadge,
+    .badge-notify,
+    .GuestBadge,
+    .BotBadge {
+        box-shadow: 0 0 8px $magenta-glow;
+    }
+    .UnreadChannelIndicator {
+        box-shadow: 0 0 10px $magenta-glow;
+    }
+
+    // ---- POSTS: subtle scanline-free separation + neon dividers ------------------
+    .post {
+        border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+    }
+    .NotificationSeparator__line,
+    .date-separator .separator__hr,
+    .new-separator .separator__hr {
+        border-color: rgba(0, 229, 255, 0.4) !important;
+        box-shadow: 0 0 6px $cyan-glow;
+    }
+
+    // ---- our native channel tabs → arcade tabs ----------------------------------
+    .agora-channel-tabs {
+        box-shadow: inset 0 -1px 0 $cyan-line;
+    }
+    .agora-channel-tabs__tab.is-active {
+        box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+
+        .agora-channel-tabs__label {
+            text-shadow: 0 0 5px rgba(0, 229, 255, 0.7);
+        }
+    }
+
+    // ---- NEON SCROLLBARS --------------------------------------------------------
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 229, 255, 0.04);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(0, 229, 255, 0.35);
+        box-shadow: inset 0 0 4px rgba(0, 229, 255, 0.6);
+
+        &:hover {
+            background: $neon-cyan;
+        }
+    }
+
+    // ---- text selection ---------------------------------------------------------
+    ::selection {
+        background: rgba(255, 46, 151, 0.45);
+        color: #fff;
+    }
+}
+
+// ---- scanline + faint vignette overlay (above everything, click-through) --------
+body.agora-theme-pixel::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            rgba(0, 0, 0, 0) 0,
+            rgba(0, 0, 0, 0) 2px,
+            rgba(0, 0, 0, 0.13) 3px,
+            rgba(0, 0, 0, 0) 4px
+        ),
+        radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.28) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.agora-theme-pixel::after {
+        background: none;
+    }
+}

@@ -132,6 +132,7 @@ const themeTypeMap: ThemeTypeMap = {
     Onyx: 'onyx',
     Agora: 'denim',
     'Agora Light': 'agoraLight',
+    'Neon Pixel': 'neonPixel',
 };
 
 // setThemeDefaults will set defaults on the theme for any unset properties.

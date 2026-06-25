@@ -358,6 +358,12 @@ export function toRgbValues(hexStr: string): string {
 export function applyTheme(theme: Theme) {
     DesktopApp.updateTheme({...theme, isUsingSystemTheme: false});
 
+    // Agora Neon Pixel: the color vars come from the theme; the pixel font, neon glow and sharp
+    // edges are layered on by sass/components/_agora-pixel.scss, gated on this body class.
+    if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.toggle('agora-theme-pixel', theme.type === 'Neon Pixel');
+    }
+
     if (theme.centerChannelColor) {
         changeCss('.app__body .markdown__table tbody tr:nth-child(2n)', 'background:' + changeOpacity(theme.centerChannelColor, 0.07));
         changeCss('.app__body .channel-header__info .header-dropdown__icon', 'color:' + changeOpacity(theme.centerChannelColor, 0.75));

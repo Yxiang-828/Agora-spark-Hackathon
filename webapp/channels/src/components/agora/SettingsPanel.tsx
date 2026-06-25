@@ -1,5 +1,7 @@
 import React, {useEffect, useState} from 'react';
 
+import ThemeSelector from './ThemeSelector';
+
 // Settings = the "start here" surface. Agora's shell has a deliberate order:
 //   1. Settings  →  2. Onboarding (connect your AI)  →  3. Channels (where work happens)
 // A new member should never wonder what to do first. This panel walks that order and
@@ -39,6 +41,26 @@ const STEPS: Array<{n: SetupStep; label: string}> = [
     {n: 3, label: 'Channels'},
 ];
 
+// Personalisation: a pick-an-avatar that's yours in the room / 3D space. Persisted locally so it
+// survives reloads without a server round-trip (best-effort, like the voice pick).
+const AVATAR_KEY = 'agora.avatar';
+const AVATARS = ['🦊', '🐼', '🐙', '🦾', '👾', '🤖', '🦉', '🐲', '⚡', '🎮', '🛸', '🌸'];
+
+const loadAvatar = (): string => {
+    try {
+        return window.localStorage.getItem(AVATAR_KEY) || AVATARS[0];
+    } catch (e) {
+        return AVATARS[0];
+    }
+};
+const saveAvatar = (a: string) => {
+    try {
+        window.localStorage.setItem(AVATAR_KEY, a);
+    } catch (e) {
+        // best-effort
+    }
+};
+
 const dim = (a: number) => `rgba(var(--center-channel-color-rgb),${a})`;
 
 const Fact = ({k, v}: {k: string; v: string}) => (
@@ -60,10 +82,16 @@ const ghostBtn: React.CSSProperties = {
 
 const SettingsPanel = ({onOpenTab}: {onOpenTab?: (id: string) => void}) => {
     const [{step, done}, setState] = useState<SetupState>(readState);
+    const [avatar, setAvatar] = useState<string>(loadAvatar);
 
     useEffect(() => {
         writeState({step, done});
     }, [step, done]);
+
+    const pickAvatar = (a: string) => {
+        setAvatar(a);
+        saveAvatar(a);
+    };
 
     const go = (n: SetupStep) => setState((s) => ({...s, step: n}));
 
@@ -126,7 +154,45 @@ const SettingsPanel = ({onOpenTab}: {onOpenTab?: (id: string) => void}) => {
                     <Fact k='Sign-in' v='Open — anyone with the link can join'/>
                     <Fact k='Your AI' v='Runs locally, on your own subscription'/>
                     <Fact k='Secrets' v='Never sent to the AI'/>
+
+                    {/* Personalise — theme + your avatar + voice */}
+                    <div style={{marginTop: 18, paddingTop: 16, borderTop: `1px solid ${dim(0.1)}`}}>
+                        <ThemeSelector/>
+                    </div>
+
                     <div style={{marginTop: 16}}>
+                        <div style={{fontWeight: 600, marginBottom: 8}}>{'Your avatar'}</div>
+                        <div style={{fontSize: 12, color: dim(0.6), marginBottom: 8}}>
+                            {'Shown beside you in channels and as your figure in the 3D Room.'}
+                        </div>
+                        <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                            {AVATARS.map((a) => (
+                                <button
+                                    key={a}
+                                    type='button'
+                                    aria-label={`Avatar ${a}`}
+                                    aria-pressed={avatar === a}
+                                    onClick={() => pickAvatar(a)}
+                                    style={{
+                                        width: 40, height: 40, fontSize: 20, cursor: 'pointer', lineHeight: 1,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8,
+                                        border: `2px solid ${avatar === a ? 'var(--button-bg,#1c58d9)' : dim(0.16)}`,
+                                        background: avatar === a ? 'rgba(var(--button-bg-rgb),.1)' : dim(0.03),
+                                    }}
+                                >{a}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{marginTop: 16}}>
+                        <div style={{fontWeight: 600, marginBottom: 6}}>{'Your voice'}</div>
+                        <div style={{fontSize: 12, color: dim(0.6), marginBottom: 8}}>
+                            {'Pick the voice your agent speaks in. Preview and choose from the Voice tab.'}
+                        </div>
+                        <button type='button' style={ghostBtn} onClick={() => onOpenTab?.('voice')}>{'Open Voice picker'}</button>
+                    </div>
+
+                    <div style={{marginTop: 18}}>
                         <button type='button' style={primaryBtn} onClick={() => go(2)}>{'Next: connect your AI →'}</button>
                     </div>
                 </div>

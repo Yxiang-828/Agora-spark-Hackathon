@@ -15,7 +15,8 @@ param(
     [string]$Distro = "Ubuntu-22.04",
     [int]$Port = 8066,
     [switch]$Local,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$SkipPlugin
 )
 $ErrorActionPreference = "Stop"
 function Info($m) { Write-Host "[fork-up] $m" -ForegroundColor Cyan }
@@ -118,6 +119,22 @@ for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep 3
 }
 if (-not $ok) { Die "server did not become healthy" }
+
+# --- 4.5 build + install the Agora plugin (all backend features) ----------
+# This is what brings the room relay, roles, codespace, voice, etc. into the fork. Without it
+# the webapp tabs render but their backend 404s. (Linux/macOS up.sh runs this too.)
+if (-not $SkipPlugin) {
+    Info "building + installing the Agora plugin (com.aegis.agora)... (first build is slow)"
+    wsl.exe -e bash -lc "cd '$RepoMnt' && bash agora/scripts/fork/plugin.sh"
+    if ($LASTEXITCODE -ne 0) { Die "plugin build/install failed" }
+}
+else { Info "-SkipPlugin: leaving the installed plugin as-is" }
+
+# --- 4.6 provision the room (admin + team + channels + brand) -------------
+# Creates the agora team, the admin, and the default + feature channels (Voice Comms, role
+# channels) so a non-dev opens to a laid-out room, not an empty server.
+Info "provisioning room (admin, team, channels, brand)..."
+wsl.exe -e bash -lc "cd '$RepoMnt' && bash agora/scripts/fork/provision.sh"
 
 # --- 5. connector (codespace + agent replies) -----------------------------
 if (Test-Path "$ConnDir\.env") {

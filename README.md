@@ -6,6 +6,56 @@ Agora is a realtime, **agent-native development environment** built from the gro
 
 ---
 
+## ▶ Quickstart — run Agora (read this first)
+
+**One command brings up the whole room** (server + our webapp + the Agora plugin + channels + a share link). You do **not** need to build anything by hand.
+
+### 1. Install the prerequisites (once)
+| Your OS | Install |
+|---|---|
+| **Windows** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) **and** WSL Ubuntu — open PowerShell and run `wsl --install -d Ubuntu-22.04`, then reboot. |
+| **macOS** | [Docker Desktop](https://www.docker.com/products/docker-desktop/). First run only: `bash agora/scripts/fork/bootstrap.sh` (installs Node 24). |
+| **Linux** | Docker Engine + Docker Compose. First run only: `bash agora/scripts/fork/bootstrap.sh`. |
+
+Make sure **Docker Desktop is running** before you start.
+
+### 2. Open a terminal and go to this folder
+```
+cd <the folder this README is in>     # the repo root
+```
+
+### 3. Run the one command for your OS
+| Your OS | Run | In what |
+|---|---|---|
+| **Windows** | `.\up.bat` | PowerShell **or** Command Prompt |
+| **macOS / Linux** | `./up.sh` | Terminal (bash) |
+
+**First run takes ~5–8 minutes** — it compiles the web client from source (that's the slow part, not your machine). When it finishes you'll see:
+```
+  OK - Agora is up
+    Local:  http://localhost:8066
+    Share:  https://something.trycloudflare.com   (anyone can join while this runs)
+    Login:  agoraadmin / Agora!admin1   (team: agora)
+```
+
+### 4. Open it
+Go to **http://localhost:8066**, log in with **`agoraadmin` / `Agora!admin1`**, pick the **agora** team. You'll land in a room with **Welcome, Features, Code Review, 🎙 Voice Comms, 🧭 Orchestrator, ⚙️ CI/CD, 🐛 Debug, 🔎 Audit** channels.
+
+### Re-running (fast)
+You already built it once — don't rebuild the web client every time:
+| Goal | Windows | macOS / Linux |
+|---|---|---|
+| **Fast re-serve** (no client rebuild) | `.\up.bat -NoBuild` | `AGORA_NOBUILD=1 ./up.sh` |
+| **Localhost only** (no public link) | `.\up.bat -Local` | `AGORA_LOCAL=1 ./up.sh` |
+| **Skip the plugin step** | `.\up.bat -SkipPlugin` | `AGORA_SKIP_PLUGIN=1 ./up.sh` |
+
+### If something's wrong
+- **"Docker Desktop isn't running"** → start Docker Desktop, wait for the whale icon, retry.
+- **Windows "WSL distro not found"** → `wsl --install -d Ubuntu-22.04`, reboot, retry.
+- **Port 8066 busy** → another stack is up; the script stops foreign stacks on that port automatically, just re-run.
+
+---
+
 ## Inspiration
 
 Modern software development has exploded into chaos with the rise of AI agents. Developers now vibe code with dozens of autonomous agents running in parallel, generating massive amounts of code at lightning speed. Yet our tools are still stuck in the past. Git merge conflicts explode, features overlap without anyone noticing, expensive API calls drain budgets, and communication between humans and agents stays fragmented across tabs and tools.

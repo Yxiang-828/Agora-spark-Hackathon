@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {useState} from 'react';
+import {useLocation} from 'react-router-dom';
 
 import ArchivePanel from './ArchivePanel';
 import CallPanel from './CallPanel';
@@ -37,7 +38,12 @@ const TABS: TabDef[] = [
 const DEFAULT_TAB: AgoraTabId = 'connect';
 
 const AgoraWorkspace = () => {
-    const [active, setActive] = useState<AgoraTabId>(DEFAULT_TAB);
+    // Deep-link support: /:team/agora?tab=room lands directly on a tab (used by the channel-header
+    // "3D Room" button and any other in-context entry point).
+    const {search} = useLocation();
+    const requested = new URLSearchParams(search).get('tab') as AgoraTabId | null;
+    const initial = requested && TABS.some((t) => t.id === requested) ? requested : DEFAULT_TAB;
+    const [active, setActive] = useState<AgoraTabId>(initial);
 
     const openTab = (id: string) => {
         if (TABS.some((t) => t.id === id)) {

@@ -31,6 +31,8 @@ import {isEmptyObject} from 'utils/utils';
 import ChannelHeaderText from './channel_header_text';
 import ChannelHeaderTitle from './channel_header_title';
 import ChannelInfoButton from './channel_info_button';
+import {getHistory} from 'utils/browser_history';
+
 import HeaderIconWrapper from './components/header_icon_wrapper';
 
 import type {PropsFromRedux} from './index';
@@ -91,6 +93,15 @@ class ChannelHeader extends React.PureComponent<Props> {
             this.props.actions.closeRightHandSide();
         } else {
             this.props.actions.showPinnedPosts();
+        }
+    };
+
+    openAgoraRoom = () => {
+        // Open this channel's 3D voice room in-context: jump to the Agora workspace on the Room tab.
+        // The room reads the current channel itself, so no id needs to ride along.
+        const teamName = this.props.team?.name;
+        if (teamName) {
+            getHistory().push(`/${teamName}/agora?tab=room`);
         }
     };
 
@@ -399,6 +410,19 @@ class ChannelHeader extends React.PureComponent<Props> {
                                     {muteTrigger}
                                     {memberListButton}
                                     {pinnedButton}
+                                    {!isDirect && team &&
+                                        <HeaderIconWrapper
+                                            buttonClass={'channel-header__icon channel-header__icon--wide channel-header__icon--left btn btn-icon btn-xs'}
+                                            buttonId={'channelHeaderAgoraRoomButton'}
+                                            onClick={this.openAgoraRoom}
+                                            tooltip={this.props.intl.formatMessage({id: 'channel_header.agoraRoom', defaultMessage: '3D Voice Room'})}
+                                        >
+                                            <i
+                                                aria-hidden='true'
+                                                className='icon icon-account-multiple-outline'
+                                            />
+                                        </HeaderIconWrapper>
+                                    }
                                     {this.props.isFileAttachmentsEnabled &&
                                         <HeaderIconWrapper
                                             buttonClass={channelFilesIconClass}

@@ -26,6 +26,24 @@ ex team create --name "$TEAM" --display-name "Agora" >/dev/null 2>&1 || true
 ex channel create --team "$TEAM" --name "$CHANNEL" --display-name "Lobby" >/dev/null 2>&1 || true
 ex team users add "$TEAM" "$ADMIN_USER" >/dev/null 2>&1 || true
 
+# Default + feature channels so a non-dev sees the room laid out on first open (idempotent).
+# Mirrors the plugin's `/agora setup`; created here too so they exist without a manual command.
+log "default + feature channels…"
+CHANNELS=(
+  "welcome|Welcome|How to use Agora — start here."
+  "features|Features|Where work happens: claim your area, open a thread, @your-agent."
+  "code-review|Code Review|Discuss diffs and reviews."
+  "voice-comms|🎙 Voice Comms|Spatial 3D voice room — humans on live mic, agents via Qwen."
+  "orchestrator|🧭 Orchestrator|Work router: routes tasks across agents (does not lock edits)."
+  "ci-cd|⚙️ CI/CD|The CI/CD Game Master agent's channel."
+  "debug|🐛 Debug|The debug agent's channel."
+  "audit|🔎 Audit|The audit agent's channel — cited findings."
+)
+for spec in "${CHANNELS[@]}"; do
+  IFS='|' read -r cname cdisp cpurpose <<<"$spec"
+  ex channel create --team "$TEAM" --name "$cname" --display-name "$cdisp" --purpose "$cpurpose" >/dev/null 2>&1 || true
+done
+
 log "brand config…"
 ex config set TeamSettings.SiteName "Agora" >/dev/null 2>&1 || true
 ex config set TeamSettings.EnableCustomBrand true >/dev/null 2>&1 || true
