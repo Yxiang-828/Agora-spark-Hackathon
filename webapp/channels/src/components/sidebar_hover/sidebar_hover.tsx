@@ -14,9 +14,10 @@ import './sidebar_hover.scss';
 // the "Invite Members" label when collapsed (the plugin left it visible, clipping to a "M").
 
 const OPEN_TRIGGER_PX = 120; // cursor within this band from the left edge -> expand
-const KEEP_OPEN_PX = 300;    // stay expanded until the cursor moves past this (past the rail width)
-const OPEN_DELAY = 50;       // ms before opening (tiny, so a deliberate move toward it opens fast)
-const CLOSE_DELAY = 220;     // ms before closing (forgiving, so brushing past it doesn't slam shut)
+const KEEP_OPEN_PX = 280;    // close as soon as the cursor leaves the expanded sidebar (264px) + a hair
+const OPEN_DELAY = 0;        // no delay — open the instant the cursor enters the band
+const CLOSE_DELAY = 0;       // no delay — close the instant the cursor leaves; the 160px hysteresis
+                             // gap (open<=120, close>280) is what prevents flicker, not a timer
 
 const SidebarHover = (): null => {
     useEffect(() => {

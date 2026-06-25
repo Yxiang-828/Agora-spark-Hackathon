@@ -411,17 +411,26 @@ class ChannelHeader extends React.PureComponent<Props> {
                                     {memberListButton}
                                     {pinnedButton}
                                     {!isDirect && team &&
-                                        <HeaderIconWrapper
-                                            buttonClass={'channel-header__icon channel-header__icon--wide channel-header__icon--left btn btn-icon btn-xs'}
-                                            buttonId={'channelHeaderAgoraRoomButton'}
+                                        <button
+                                            id='channelHeaderAgoraRoomButton'
+                                            className='style--none'
                                             onClick={this.openAgoraRoom}
-                                            tooltip={this.props.intl.formatMessage({id: 'channel_header.agoraRoom', defaultMessage: '3D Voice Room'})}
+                                            aria-label={this.props.intl.formatMessage({id: 'channel_header.agoraRoom', defaultMessage: '3D Voice Room'})}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                height: 28, padding: '0 11px', marginLeft: 4, borderRadius: 4,
+                                                border: '1px solid rgba(var(--button-bg-rgb),.4)',
+                                                background: 'rgba(var(--button-bg-rgb),.12)',
+                                                color: 'var(--button-bg)', fontWeight: 600, fontSize: 12, cursor: 'pointer',
+                                            }}
                                         >
                                             <i
                                                 aria-hidden='true'
-                                                className='icon icon-account-multiple-outline'
+                                                className='icon icon-video-outline'
+                                                style={{fontSize: 16}}
                                             />
-                                        </HeaderIconWrapper>
+                                            <span>{'3D Room'}</span>
+                                        </button>
                                     }
                                     {this.props.isFileAttachmentsEnabled &&
                                         <HeaderIconWrapper
