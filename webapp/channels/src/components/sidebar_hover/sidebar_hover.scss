@@ -1,0 +1,104 @@
+// Left sidebar: slim icon rail by default, expands to full when the cursor enters the left band
+// (state driven from JS as body.agora-lhs-open — see sidebar_hover.tsx). We never touch
+// #channel_view: it's a CSS grid child of .main-wrapper and the center column (minmax(385px,1fr))
+// grows on its own as the min-content LHS column shrinks. Forcing width/display on #channel_view
+// is what caused the "big left gap".
+
+// Slow, smooth easing applied in BOTH directions (it lives on the base rule, so collapse animates
+// too). cubic-bezier(0.25, 0.8, 0.25, 1) is a soft ease-out; 420ms reads as a deliberate glide.
+$agora-lhs-ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+$agora-lhs-dur: 420ms;
+
+@media screen and (min-width: 769px) and (hover: hover) and (pointer: fine) {
+    body.agora-lhs-hover-enabled:not(.layout-changing) #SidebarContainer {
+        --overrideLhsWidth: var(--agora-lhs-rail-width, 56px);
+
+        width: var(--agora-lhs-rail-width, 56px) !important;
+        min-width: var(--agora-lhs-rail-width, 56px) !important;
+        max-width: var(--agora-lhs-rail-width, 56px) !important;
+        overflow-x: hidden;
+        justify-self: start;
+        transition:
+            width $agora-lhs-dur $agora-lhs-ease,
+            min-width $agora-lhs-dur $agora-lhs-ease,
+            max-width $agora-lhs-dur $agora-lhs-ease,
+            box-shadow 260ms ease;
+        will-change: width;
+    }
+
+    // Expanded: cursor is in the left trigger band (or focus is inside the sidebar).
+    body.agora-lhs-hover-enabled.agora-lhs-open:not(.layout-changing) #SidebarContainer {
+        --overrideLhsWidth: 264px;
+
+        width: var(--overrideLhsWidth, 264px) !important;
+        min-width: 200px !important;
+        max-width: 304px !important;
+        box-shadow: 12px 0 28px rgba(0, 0, 0, 0.2);
+    }
+
+    // ---- collapsed look (everything below applies only while NOT open) ----
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .sidebarHeaderContainer {
+        justify-content: center;
+        padding: 0 4px;
+    }
+
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelLinkLabel_wrapper,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelLinkLabel,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .sidebar-item__name,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelGroupHeader_text,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarCategory_newLabel,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarHeader .header__info,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelNavigator,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer #sidebarTeamMenuButton > span:not(.Avatar) {
+        display: none;
+    }
+
+    // Hide the label on BOTH the "Add Channels" and "Invite Members" CTA buttons when collapsed,
+    // keep just the icon centered. (The leaking-"M" fix is the inviteMembers selector here.)
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelNavigator__addChannelsCtaLhsButton,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelNavigator__inviteMembersLhsButton,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer #addChannelsCta {
+        justify-content: center;
+        padding-right: 0;
+        padding-left: 0;
+        font-size: 0;
+        line-height: 0;
+    }
+
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelNavigator__addChannelsCtaLhsButton .icon,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelNavigator__inviteMembersLhsButton .icon-plus-box,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer #addChannelsCta .icon-plus-box {
+        font-size: 18px;
+        line-height: 1;
+    }
+
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarLink,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannel,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannelGroupHeader_groupButton {
+        justify-content: center;
+        padding-right: 0;
+        padding-left: 0;
+    }
+
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .SidebarChannel .SidebarLink > i,
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer .DirectChannel__profile-picture {
+        margin-right: 0;
+        margin-left: 0;
+    }
+
+    body.agora-lhs-hover-enabled:not(.agora-lhs-open):not(.layout-changing) #SidebarContainer #browseOrAddChannelMenuButton {
+        margin: 0 auto;
+    }
+}
+
+@media screen and (min-width: 1201px) and (hover: hover) and (pointer: fine) {
+    body.agora-lhs-hover-enabled.agora-lhs-open:not(.layout-changing) #SidebarContainer {
+        max-width: 304px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.agora-lhs-hover-enabled #SidebarContainer {
+        transition: none !important;
+    }
+}

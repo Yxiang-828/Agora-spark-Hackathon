@@ -1,0 +1,24 @@
+{
+  "name": "bad-creds-embedded",
+  "version": "0.1.0",
+  "description": {
+    "what": "Carries a literal password in the manifest.",
+    "when_to_use": "Demonstrates Art. II: credentials never in the manifest.",
+    "not_for": "Real use."
+  },
+  "inputs": [{"name": "host", "type": "string", "required": true, "doc": "host id"}],
+  "outputs": [{"name": "stdout", "type": "string"}],
+  "errors": [{"code": "AUTH_FAILED", "when": "bad credential", "recoverable": false}],
+  "workflow": {
+    "preconditions": ["host resolves"],
+    "steps": ["connect", "exec"],
+    "postconditions": ["typed result or typed error"]
+  },
+  "os_support": {
+    "linux": {"resolve": "ssh"},
+    "macos": {"resolve": "ssh"},
+    "windows": {"resolve": "plink"}
+  },
+  "failure": {"idempotent": false, "blast_radius": "host"},
+  "credentials": [{"ref": "ssh/host", "password": "hunter2"}]
+}

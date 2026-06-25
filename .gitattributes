@@ -1,0 +1,5 @@
+# Keep our shell scripts LF on every platform — a CRLF checkout breaks bash
+# (misleading "No such file or directory"). Scoped to Agora so it doesn't churn
+# upstream Mattermost files.
+agora/**/*.sh text eol=lf
+agora/scripts/fork/*.sh text eol=lf

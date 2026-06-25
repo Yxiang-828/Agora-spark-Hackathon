@@ -1,0 +1,31 @@
+{
+  "name": "agora-codespace",
+  "version": "1.0.0",
+  "description": {
+    "what": "Write code the agent produces into the channel's bound Codespace, so the team can browse and edit it in the editor.",
+    "when_to_use": "When asked to write or change code in a channel that has a bound codespace.",
+    "not_for": "Running code (that's the runtime/terminal), or channels with no bound codespace."
+  },
+  "inputs": [
+    {"name": "path", "type": "string", "required": true, "doc": "file path within the codespace, e.g. src/main.go"},
+    {"name": "content", "type": "string", "required": true, "doc": "file contents"}
+  ],
+  "outputs": [
+    {"name": "saved", "type": "bool"}
+  ],
+  "errors": [
+    {"code": "NO_CODESPACE", "when": "the channel has no bound codespace", "recoverable": false},
+    {"code": "FILE_TOO_LARGE", "when": "the file exceeds the codespace size cap", "recoverable": false}
+  ],
+  "workflow": {
+    "preconditions": ["the channel is bound to a codespace"],
+    "steps": ["tag each code block with a file path", "the connector writes each block to the codespace"],
+    "postconditions": ["files appear in the Codespace editor for everyone"]
+  },
+  "os_support": {
+    "linux": {"resolve": "connector writes via the room API"},
+    "macos": {"resolve": "connector writes via the room API"},
+    "windows": {"resolve": "connector writes via the room API"}
+  },
+  "failure": {"idempotent": true, "blast_radius": "codespace files"}
+}

@@ -1,0 +1,133 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+
+@use 'utils/mixins';
+
+.header-footer-route {
+    position: relative;
+    display: flex;
+    overflow: hidden;
+    width: 100%;
+    min-height: 100%;
+    flex-direction: column;
+    margin: 0 auto;
+    grid-area: main;
+
+    .header-footer-route-container {
+        display: flex;
+        width: 100%;
+        height: 100vh;
+        flex-flow: column;
+        // Agora fork: a deep, intentional brand backdrop instead of the stock light hexagon image.
+        background-color: #0a0f1a;
+        background-image:
+            radial-gradient(1200px 760px at 18% 8%, rgba(53, 78, 138, 0.55) 0%, rgba(15, 22, 38, 0) 60%),
+            radial-gradient(1000px 700px at 92% 96%, rgba(94, 74, 200, 0.4) 0%, rgba(10, 15, 26, 0) 55%),
+            linear-gradient(160deg, #111a2e 0%, #0b1120 55%, #080c16 100%);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        // MM-45313 - Hack for issue in iOS Safari with scrolling
+        -webkit-overflow-scrolling: touch;
+        overflow-y: auto;
+    }
+
+    // ── Agora pre-auth brand + readable-on-dark text ──────────────────────
+    .agora-wordmark {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #fff;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+    }
+
+    .agora-wordmark__dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4d7cff, #7a5cff);
+        box-shadow: 0 0 14px rgba(100, 120, 255, 0.7);
+    }
+
+    .agora-brand-link {
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: none;
+        }
+    }
+
+    // The big left-hand hero ("Log in to your account" + tagline) — light on the dark backdrop.
+    .login-body-message-title {
+        color: #fff !important;
+    }
+
+    .login-body-message-subtitle {
+        color: rgba(255, 255, 255, 0.72) !important;
+    }
+
+    // Header alternate link ("Don't have an account?") + footer — keep legible on dark.
+    .header-main a:not(.agora-brand-link),
+    .hfroute-header .alternate-link__link {
+        color: #9db4ff;
+    }
+
+    .hfroute-footer {
+        .footer-copyright,
+        .footer-link {
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .footer-link:hover {
+            color: rgba(255, 255, 255, 0.85);
+        }
+    }
+
+    // Login form inputs — dark, not stock white boxes with gray text. Field reads as part of
+    // the dark card; clear contrast; accent on focus.
+    .Input_fieldset {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.04);
+
+        &.Input_fieldset___legend {
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        &.Input_fieldset___focus {
+            border-color: #5b8cff;
+            box-shadow: 0 0 0 1px rgba(91, 140, 255, 0.5);
+        }
+    }
+
+    .Input.form-control {
+        background: transparent !important;
+        color: #fff;
+
+        &::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+    }
+
+    .Input_legend {
+        color: rgba(255, 255, 255, 0.7);
+
+        &.Input_legend___focus {
+            color: #9db4ff;
+        }
+    }
+
+    // password reveal eye + any clear button
+    .input-clear,
+    .Input__clear,
+    .login-body-card-form .style--none {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .Login__body .login-body-card,
+    .login-body-card-content {
+        // keep the card itself readable on dark
+        color: rgba(255, 255, 255, 0.92);
+    }
+}

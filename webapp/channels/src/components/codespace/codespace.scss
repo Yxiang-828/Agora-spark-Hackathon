@@ -1,0 +1,246 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// Agora native codespace — full-width collaborative IDE surface.
+
+.codespace {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--center-channel-bg);
+    color: var(--center-channel-color);
+
+    &__sidebar {
+        display: flex;
+        width: 260px;
+        min-width: 200px;
+        flex-direction: column;
+        border-right: 1px solid rgba(var(--center-channel-color-rgb), 0.12);
+        background: rgba(var(--center-channel-color-rgb), 0.03);
+    }
+
+    &__sidebar-head,
+    &__files-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.66;
+    }
+
+    &__list {
+        max-height: 32%;
+        margin: 0;
+        padding: 0 6px;
+        list-style: none;
+        overflow-y: auto;
+    }
+
+    &__cs {
+        width: 100%;
+        padding: 6px 8px;
+        border: 0;
+        border-radius: 4px;
+        background: none;
+        color: inherit;
+        cursor: pointer;
+        font-size: 13px;
+        text-align: left;
+
+        &:hover {
+            background: rgba(var(--center-channel-color-rgb), 0.08);
+        }
+
+        &--active {
+            background: rgba(var(--button-bg-rgb), 0.12);
+            color: var(--button-bg);
+            font-weight: 600;
+        }
+    }
+
+    &__empty {
+        padding: 6px 8px;
+        font-size: 12px;
+        list-style: none;
+        opacity: 0.5;
+    }
+
+    &__new {
+        display: flex;
+        gap: 4px;
+        padding: 8px 10px;
+
+        input {
+            flex: 1;
+            min-width: 0;
+            padding: 5px 8px;
+            border: 1px solid rgba(var(--center-channel-color-rgb), 0.16);
+            border-radius: 4px;
+            background: var(--center-channel-bg);
+            color: inherit;
+            font-size: 12.5px;
+        }
+
+        button {
+            width: 28px;
+            border: 0;
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--button-color);
+            cursor: pointer;
+            font-size: 16px;
+        }
+    }
+
+    &__files {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        border-top: 1px solid rgba(var(--center-channel-color-rgb), 0.12);
+
+        .codespace__files-head button {
+            width: 20px;
+            height: 20px;
+            border: 0;
+            border-radius: 4px;
+            background: rgba(var(--center-channel-color-rgb), 0.08);
+            color: inherit;
+            cursor: pointer;
+        }
+
+        > div:last-child {
+            flex: 1;
+            padding: 2px 6px 10px;
+            overflow-y: auto;
+        }
+    }
+
+    &__main {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+    }
+
+    &__toolbar {
+        display: flex;
+        align-items: center;
+        height: 44px;
+        padding: 0 12px;
+        border-bottom: 1px solid rgba(var(--center-channel-color-rgb), 0.12);
+        gap: 12px;
+    }
+
+    &__title {
+        display: flex;
+        overflow: hidden;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    &__path {
+        font-weight: 400;
+        opacity: 0.6;
+    }
+
+    &__dot {
+        color: var(--button-bg);
+        font-size: 11px;
+    }
+
+    &__peers {
+        display: flex;
+        flex: 1;
+        gap: 3px;
+    }
+
+    &__peer {
+        display: inline-flex;
+        width: 22px;
+        height: 22px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    &__tools {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        select,
+        button {
+            height: 28px;
+            padding: 0 8px;
+            border: 1px solid rgba(var(--center-channel-color-rgb), 0.16);
+            border-radius: 4px;
+            background: var(--center-channel-bg);
+            color: inherit;
+            cursor: pointer;
+            font-size: 12.5px;
+        }
+
+        button.is-on {
+            border-color: var(--button-bg);
+            background: rgba(var(--button-bg-rgb), 0.12);
+            color: var(--button-bg);
+        }
+    }
+
+    &__save {
+        font-weight: 600;
+
+        &:not(:disabled) {
+            border-color: var(--button-bg) !important;
+            background: var(--button-bg) !important;
+            color: var(--button-color) !important;
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+    }
+
+    &__banner,
+    &__error {
+        padding: 6px 12px;
+        font-size: 12.5px;
+    }
+
+    &__banner {
+        background: rgba(var(--button-bg-rgb), 0.08);
+    }
+
+    &__error {
+        background: rgba(var(--error-text-color-rgb), 0.12);
+        color: var(--error-text);
+    }
+
+    &__editor {
+        position: relative;
+        min-height: 0;
+        flex: 1;
+        overflow: hidden;
+    }
+
+    &__placeholder {
+        display: flex;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        opacity: 0.5;
+    }
+}

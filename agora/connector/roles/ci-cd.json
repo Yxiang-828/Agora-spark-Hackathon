@@ -1,0 +1,24 @@
+{
+  "name": "ci-cd",
+  "version": "1.0.0",
+  "purpose": {
+    "what": "Own a vibe-coding pipeline for the channel's codespace: on a push, run a fast, forgiving build+test, publish a preview, and report status back to the thread — preview-first, not enterprise gatekeeping.",
+    "when_to_assume": "When code lands in a bound codespace (commit/push) or the team asks to build, test, preview, or deploy.",
+    "not_for": "Diagnosing a specific bug (that's the debugger role) or channels with no bound codespace."
+  },
+  "skills": ["agora-codespace"],
+  "authority": { "edit": false, "commit": false, "push": false, "run": true },
+  "roulette": { "eligible": true, "weight": 1, "max_concurrent": 1, "rotate_after": "session" },
+  "pipeline": {
+    "trigger": "on_push",
+    "stages": ["install", "build", "test", "preview"],
+    "philosophy": "fast + forgiving + preview-first — green is a live preview link, red is a one-line reason in the thread",
+    "on_red": "post the failing stage + first error line to the thread; never block the room"
+  },
+  "os_support": {
+    "linux": { "resolve": "runs the pipeline on the host the connector serves" },
+    "macos": { "resolve": "runs the pipeline on the host the connector serves" },
+    "windows": { "resolve": "runs the pipeline on the host the connector serves" }
+  },
+  "failure": { "idempotent": true, "blast_radius": "a sandboxed pipeline run + a preview deploy" }
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 240" fill="none">
+  <!-- Horizontal lockup, light marks on transparent (use on dark surfaces). -->
+  <g transform="translate(8,26) scale(0.72)">
+    <path d="M64 206 L64 120 A64 64 0 0 1 192 120 L192 206"
+          stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+    <path d="M50 206 L206 206" stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+    <circle cx="100" cy="158" r="11" fill="#ECE7DD"/>
+    <circle cx="128" cy="158" r="14" fill="#E0A15E"/>
+    <circle cx="156" cy="158" r="11" fill="#ECE7DD"/>
+  </g>
+  <text x="212" y="170" font-family="Georgia, 'Times New Roman', serif"
+        font-size="150" font-weight="600" letter-spacing="1" fill="#ECE7DD">Agora</text>
+</svg>

@@ -1,0 +1,36 @@
+{
+  "name": "ssh-access",
+  "version": "1.2.0",
+  "description": {
+    "what": "Run a command on a remote host over SSH and return stdout/stderr/exit.",
+    "when_to_use": "Any skill/task that needs to reach another machine by SSH.",
+    "not_for": "Local execution (use the local exec skill); interactive shells."
+  },
+  "inputs": [
+    {"name": "host", "type": "string", "required": true, "doc": "host id from the fact-index"},
+    {"name": "command", "type": "string", "required": true, "doc": "the remote command"},
+    {"name": "read_only", "type": "bool", "required": false, "default": true, "doc": "blast-radius hint"}
+  ],
+  "outputs": [
+    {"name": "stdout", "type": "string"},
+    {"name": "exit_code", "type": "int"}
+  ],
+  "errors": [
+    {"code": "UNRESOLVED_HOST", "when": "host not in fact-index", "recoverable": false},
+    {"code": "NO_TRANSPORT", "when": "no SSH transport on this OS", "recoverable": false},
+    {"code": "AUTH_FAILED", "when": "credential rejected", "recoverable": false},
+    {"code": "REMOTE_NONZERO", "when": "command exited non-zero", "recoverable": true}
+  ],
+  "workflow": {
+    "preconditions": ["host resolves in fact-index", "a credential ref exists"],
+    "steps": ["resolve transport for this OS", "exec via Hands", "capture result"],
+    "postconditions": ["typed result OR a typed error; nothing silent"]
+  },
+  "os_support": {
+    "linux": {"resolve": "ssh / sshpass (key preferred)"},
+    "macos": {"resolve": "ssh / sshpass (key preferred)"},
+    "windows": {"resolve": "wsl ssh|sshpass || plink (-hostkey) || native OpenSSH"}
+  },
+  "failure": {"timeout": "240s", "idempotent": false, "retry": "none", "blast_radius": "host:command"},
+  "credentials": [{"ref": "ssh/<host>", "resolved_by": "hands"}]
+}

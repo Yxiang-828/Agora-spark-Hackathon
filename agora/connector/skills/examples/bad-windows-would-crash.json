@@ -1,0 +1,26 @@
+{
+  "name": "bad-windows-would-crash",
+  "version": "0.1.0",
+  "description": {
+    "what": "Same as ssh-access but Windows has no declared resolution.",
+    "when_to_use": "Demonstrates Art. I: an OS that would hard-crash is rejected.",
+    "not_for": "Real use."
+  },
+  "inputs": [
+    {"name": "host", "type": "string", "required": true, "doc": "host id"},
+    {"name": "command", "type": "string", "required": true, "doc": "remote command"}
+  ],
+  "outputs": [{"name": "stdout", "type": "string"}],
+  "errors": [{"code": "NO_TRANSPORT", "when": "no SSH transport", "recoverable": false}],
+  "workflow": {
+    "preconditions": ["host resolves"],
+    "steps": ["resolve transport", "exec"],
+    "postconditions": ["typed result or typed error"]
+  },
+  "os_support": {
+    "linux": {"resolve": "ssh"},
+    "macos": {"resolve": "ssh"},
+    "windows": {}
+  },
+  "failure": {"idempotent": false, "blast_radius": "host:command"}
+}

@@ -1,0 +1,18 @@
+{
+  "name": "debugger",
+  "version": "1.0.0",
+  "purpose": {
+    "what": "Reproduce, isolate, and fix failures in the channel's bound codespace — read the error, find the cause, make the smallest correct change, and verify it.",
+    "when_to_assume": "When a thread reports a bug, a failing test, a crash, or a stack trace, and the channel has a bound codespace.",
+    "not_for": "Greenfield feature work, CI/CD pipeline changes (that's the ci-cd role), or channels with no bound codespace."
+  },
+  "skills": ["agora-codespace"],
+  "authority": { "edit": true, "commit": false, "push": false, "run": true },
+  "roulette": { "eligible": true, "weight": 2, "max_concurrent": 1, "rotate_after": "task" },
+  "os_support": {
+    "linux": { "resolve": "edits + runs via the room API against the bound codespace" },
+    "macos": { "resolve": "edits + runs via the room API against the bound codespace" },
+    "windows": { "resolve": "edits + runs via the room API against the bound codespace" }
+  },
+  "failure": { "idempotent": true, "blast_radius": "codespace files + a sandboxed run" }
+}

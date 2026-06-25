@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Agora mark: an arch (gateway) over an assembly of three nodes.
+       Center node accented = the AI; flanking nodes = people. -->
+  <path d="M64 206 L64 120 A64 64 0 0 1 192 120 L192 206"
+        stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+  <path d="M50 206 L206 206" stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="100" cy="158" r="11" fill="#ECE7DD"/>
+  <circle cx="128" cy="158" r="14" fill="#E0A15E"/>
+  <circle cx="156" cy="158" r="11" fill="#ECE7DD"/>
+</svg>

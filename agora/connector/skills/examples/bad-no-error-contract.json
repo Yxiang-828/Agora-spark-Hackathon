@@ -1,0 +1,23 @@
+{
+  "name": "bad-no-error-contract",
+  "version": "0.1.0",
+  "description": {
+    "what": "Declares no errors and an incomplete description.",
+    "when_to_use": "",
+    "not_for": "Real use."
+  },
+  "inputs": [{"name": "host", "type": "string", "required": true}],
+  "outputs": [{"name": "stdout", "type": "string"}],
+  "errors": [],
+  "workflow": {
+    "preconditions": [],
+    "steps": ["do the thing"],
+    "postconditions": []
+  },
+  "os_support": {
+    "linux": {"resolve": "ssh"},
+    "macos": {"resolve": "ssh"},
+    "windows": {"resolve": "plink"}
+  },
+  "failure": {"idempotent": false, "blast_radius": "host"}
+}

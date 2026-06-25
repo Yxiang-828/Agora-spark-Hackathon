@@ -1,0 +1,88 @@
+// Native channel tabs — a browser-style strip mounted as the first child of
+// #app-content.app__content (already a flex column). We do NOT touch #channel_view's
+// display: it's a CSS grid child of .main-wrapper and forcing flex on it collapses
+// the center column (the "big left gap" bug).
+
+.agora-channel-tabs {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    gap: 2px;
+    min-height: 36px;
+    padding: 4px 8px 0;
+    border-bottom: 1px solid rgba(var(--center-channel-color-rgb), 0.12);
+    background: var(--center-channel-bg);
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.agora-channel-tabs__tab {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    max-width: 200px;
+    min-width: 72px;
+    min-height: 30px;
+    border: 1px solid rgba(var(--center-channel-color-rgb), 0.12);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: rgba(var(--center-channel-color-rgb), 0.04);
+    color: inherit;
+    transition: background 140ms ease, border-color 140ms ease;
+
+    &:hover {
+        background: rgba(var(--center-channel-color-rgb), 0.07);
+    }
+
+    &.is-active {
+        border-color: rgba(var(--button-bg-rgb), 0.38);
+        background: rgba(var(--button-bg-rgb), 0.1);
+        color: var(--button-bg);
+        font-weight: 600;
+    }
+}
+
+.agora-channel-tabs__select {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 4px 4px 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.agora-channel-tabs__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.agora-channel-tabs__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.68;
+
+    &:hover {
+        background: rgba(var(--center-channel-color-rgb), 0.1);
+        opacity: 1;
+    }
+}

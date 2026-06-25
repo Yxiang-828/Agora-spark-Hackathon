@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" fill="none">
+  <!-- Self-contained lockup on an ink panel. Use as the login brand image
+       (reads on any background, incl. Mattermost's default light login). -->
+  <rect width="900" height="280" rx="36" fill="#0E1016"/>
+  <g transform="translate(48,46) scale(0.72)">
+    <path d="M64 206 L64 120 A64 64 0 0 1 192 120 L192 206"
+          stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+    <path d="M50 206 L206 206" stroke="#ECE7DD" stroke-width="22" stroke-linecap="round"/>
+    <circle cx="100" cy="158" r="11" fill="#ECE7DD"/>
+    <circle cx="128" cy="158" r="14" fill="#E0A15E"/>
+    <circle cx="156" cy="158" r="11" fill="#ECE7DD"/>
+  </g>
+  <text x="252" y="190" font-family="Georgia, 'Times New Roman', serif"
+        font-size="150" font-weight="600" letter-spacing="1" fill="#ECE7DD">Agora</text>
+</svg>

@@ -1,0 +1,83 @@
+# Agora FORK serve stack: our compiled webapp + a version-matched Mattermost server.
+#
+# This is the fork path (NOT the old plugin path in ../docker-compose.yml). It serves the
+# webapp we build from source (webapp/channels/dist) on top of a stock server binary pinned
+# to the same minor line (11.9) so client/server API shapes match.
+#
+#   build first:  agora/scripts/build_webapp.sh        (produces webapp/channels/dist)
+#   then:         docker compose -f agora/deploy/fork/docker-compose.yml up -d
+#   open:         http://localhost:8066
+#
+# WEBAPP_DIST defaults to the repo's built client; override to serve a different build.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mmuser
+      POSTGRES_PASSWORD: mmuser_dev_pw      # dev only
+      POSTGRES_DB: mattermost
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mmuser -d mattermost"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  mattermost:
+    # Pinned to the 11.9 release line to match our fork source (server/public/model/version.go = 11.9.0).
+    image: mattermost/mattermost-team-edition:${MM_IMAGE_TAG:-release-11.9}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${AGORA_PORT:-8066}:8065"
+      # Calls/screenshare WebRTC media port. Without this published (tcp+udp) the
+      # Calls plugin can signal a call but never connect media — calls/screenshare
+      # silently fail. 8443 is the Calls plugin's default RTC port.
+      - "${AGORA_RTC_PORT:-8443}:8443/tcp"
+      - "${AGORA_RTC_PORT:-8443}:8443/udp"
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: "postgres://mmuser:mmuser_dev_pw@postgres:5432/mattermost?sslmode=disable&connect_timeout=10"
+      MM_SERVICESETTINGS_SITEURL: "${AGORA_SITEURL:-http://localhost:8066}"
+      MM_TEAMSETTINGS_SITENAME: "Agora"
+      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
+      MM_SERVICESETTINGS_ENABLEDEVELOPER: "true"
+      MM_SERVICESETTINGS_ENABLETESTING: "true"
+      # plugins: needed to install the Agora plugin (com.aegis.agora) for full feature parity
+      MM_PLUGINSETTINGS_ENABLE: "true"
+      MM_PLUGINSETTINGS_ENABLEUPLOADS: "true"
+      MM_PLUGINSETTINGS_AUTOMATICPREPACKAGEDPLUGINS: "true"
+      MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: "true"
+      MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: "true"
+      MM_TEAMSETTINGS_ENABLEUSERCREATION: "true"
+      MM_TEAMSETTINGS_ENABLEOPENSERVER: "true"
+      MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION: "false"
+      MM_LOGSETTINGS_CONSOLELEVEL: "INFO"
+    volumes:
+      # Our compiled webapp lives in a NAMED VOLUME (mmclient), seeded from
+      # webapp/channels/dist by serve.sh before this container starts.
+      #
+      # Why a named volume and not a bind mount of the dist?  On Docker Desktop
+      # (WSL2 backend) a named volume nested *under* a WSL bind mount
+      # (client/plugins under a bind-mounted client) is silently shadowed — the
+      # server can neither write plugin bundles into it (mkdir: permission
+      # denied) nor serve them (/static/plugins/* -> 404). Making client a
+      # plain writable named volume owned by the mattermost uid lets the server
+      # create and serve client/plugins itself, exactly like a stock install.
+      - mmclient:/mattermost/client
+      - mmconfig:/mattermost/config
+      - mmdata:/mattermost/data
+      - mmlogs:/mattermost/logs
+      - mmplugins:/mattermost/plugins
+
+volumes:
+  pgdata:
+  mmconfig:
+  mmdata:
+  mmlogs:
+  mmplugins:
+  mmclient:

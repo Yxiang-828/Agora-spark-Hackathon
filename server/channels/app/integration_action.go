@@ -1,0 +1,719 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+
+// Integration Action Flow
+//
+// 1. An integration creates an interactive message button or menu.
+// 2. A user clicks on a button or selects an option from the menu.
+// 3. The client sends a request to server to complete the post action, calling DoPostActionWithCookie below.
+// 4. DoPostActionWithCookie will send an HTTP POST request to the integration containing contextual data, including
+// an encoded and signed trigger ID. Slash commands also include trigger IDs in their payloads.
+// 5. The integration performs any actions it needs to and optionally makes a request back to the MM server
+// using the trigger ID to open an interactive dialog.
+// 6. If that optional request is made, OpenInteractiveDialog sends a WebSocket event to all connected clients
+// for the relevant user, telling them to display the dialog.
+// 7. The user fills in the dialog and submits it, where SubmitInteractiveDialog will submit it back to the
+// integration for handling.
+
+package app
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"maps"
+	"net/http"
+	"net/url"
+	"path"
+	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
+
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/shared/mlog"
+	"github.com/mattermost/mattermost/server/public/shared/request"
+	"github.com/mattermost/mattermost/server/v8/channels/store"
+	"github.com/mattermost/mattermost/server/v8/channels/utils"
+)
+
+// maxMmBlocksActionsCloneDepth caps recursion in cloneMmBlocksActionsProp.
+// ValidateMmBlocksActions bounds top-level entry count and key length but
+// does not bound nesting depth inside spec.Context — a bot/plugin could
+// otherwise stash a pathologically nested object that drives stack
+// exhaustion on the restore path. 64 is well past any plausible legitimate
+// nesting; deeper input is treated as malicious and truncated.
+const maxMmBlocksActionsCloneDepth = 64
+
+// cloneMmBlocksActionsProp deep-clones the post.props.mm_blocks_actions value.
+// Each per-action entry can carry nested context / query maps (and arrays
+// inside those), so the clone walks the structure recursively — a shallow
+// clone at any level would leave nested objects aliased back to the live
+// post's props, defeating the restore-after-invalid-response guarantee.
+func cloneMmBlocksActionsProp(v any) any {
+	return cloneMmBlocksActionsPropAt(v, 0)
+}
+
+func cloneMmBlocksActionsPropAt(v any, depth int) any {
+	if depth > maxMmBlocksActionsCloneDepth {
+		// Defense-in-depth: drop the subtree rather than risk stack
+		// exhaustion. The restore path that calls this helper is on a
+		// rare branch (plugin response is invalid), and pathological
+		// nesting at this depth is not a legitimate use case.
+		return nil
+	}
+	switch typed := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for k, child := range typed {
+			out[k] = cloneMmBlocksActionsPropAt(child, depth+1)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, child := range typed {
+			out[i] = cloneMmBlocksActionsPropAt(child, depth+1)
+		}
+		return out
+	default:
+		// Scalars (string/number/bool/nil) are immutable — safe to share.
+		return v
+	}
+}
+
+func (a *App) DoPostActionWithCookie(rctx request.CTX, postID, actionId, userID, selectedOption string, cookie *model.PostActionCookie, query map[string]string) (string, *model.AppError) {
+	// Bound the per-click query at the App boundary so any caller — REST
+	// handler, plugin, future internal trigger — gets the same enforcement.
+	if err := model.ValidateActionQuery(query); err != nil {
+		return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.query.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	// PostAction may result in the original post being updated. For the
+	// updated post, we need to unconditionally preserve the original
+	// IsPinned and HasReaction attributes, and preserve its entire
+	// original Props set unless the plugin returns a replacement value.
+	// originalXxx variables are used to preserve these values.
+	var originalProps map[string]any
+	originalIsPinned := false
+	originalHasReactions := false
+
+	// If the updated post does contain a replacement Props set, we still
+	// need to preserve some original values, as listed in
+	// model.PostActionRetainPropKeys. remove and retain track these.
+	remove := []string{}
+	retain := map[string]any{}
+
+	datasource := ""
+	upstreamURL := ""
+	rootPostId := ""
+	upstreamRequest := &model.PostActionIntegrationRequest{
+		UserId: userID,
+		PostId: postID,
+	}
+
+	// See if the post exists in the DB, if so ignore the cookie.
+	// Start all queries here for parallel execution
+	pchan := make(chan store.StoreResult[*model.Post], 1)
+	go func() {
+		post, err := a.Srv().Store().Post().GetSingle(rctx, postID, false)
+		pchan <- store.StoreResult[*model.Post]{Data: post, NErr: err}
+		close(pchan)
+	}()
+
+	cchan := make(chan store.StoreResult[*model.Channel], 1)
+	go func() {
+		channel, err := a.Srv().Store().Channel().GetForPost(postID)
+		cchan <- store.StoreResult[*model.Channel]{Data: channel, NErr: err}
+		close(cchan)
+	}()
+
+	userChan := make(chan store.StoreResult[*model.User], 1)
+	go func() {
+		user, err := a.Srv().Store().User().Get(context.Background(), upstreamRequest.UserId)
+		userChan <- store.StoreResult[*model.User]{Data: user, NErr: err}
+		close(userChan)
+	}()
+
+	result := <-pchan
+	if result.NErr != nil {
+		if cookie == nil {
+			var nfErr *store.ErrNotFound
+			switch {
+			case errors.As(result.NErr, &nfErr):
+				return "", model.NewAppError("DoPostActionWithCookie", "app.post.get.app_error", nil, "", http.StatusNotFound).Wrap(result.NErr)
+			default:
+				return "", model.NewAppError("DoPostActionWithCookie", "app.post.get.app_error", nil, "", http.StatusInternalServerError).Wrap(result.NErr)
+			}
+		}
+		if cookie.Integration == nil {
+			return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_integration.app_error", nil, "no Integration in action cookie", http.StatusBadRequest)
+		}
+
+		if postID != cookie.PostId {
+			return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_integration.app_error", nil, "postId doesn't match", http.StatusBadRequest)
+		}
+
+		channel, err := a.Srv().Store().Channel().Get(cookie.ChannelId, true)
+		if err != nil {
+			errCtx := map[string]any{"channel_id": cookie.ChannelId}
+			var nfErr *store.ErrNotFound
+			switch {
+			case errors.As(err, &nfErr):
+				return "", model.NewAppError("DoPostActionWithCookie", "app.channel.get.existing.app_error", errCtx, "", http.StatusNotFound).Wrap(err)
+			default:
+				return "", model.NewAppError("DoPostActionWithCookie", "app.channel.get.find.app_error", errCtx, "", http.StatusInternalServerError).Wrap(err)
+			}
+		}
+
+		upstreamRequest.ChannelId = cookie.ChannelId
+		upstreamRequest.ChannelName = channel.Name
+		upstreamRequest.TeamId = channel.TeamId
+		upstreamRequest.Type = cookie.Type
+		// Clone the Context map — later code may add selected_option to
+		// it, and we must not mutate the shared source.
+		//
+		// query is intentionally not merged on the cookie path: cookies are
+		// only baked for attachment action buttons, not for mm_blocks
+		// actions, so this branch is never reached by a click that carries
+		// per-click query params.
+		upstreamRequest.Context = maps.Clone(cookie.Integration.Context)
+		datasource = cookie.DataSource
+
+		retain = maps.Clone(cookie.RetainProps)
+		remove = cookie.RemoveProps
+		rootPostId = cookie.RootPostId
+		upstreamURL = cookie.Integration.URL
+	} else {
+		post := result.Data
+		chResult := <-cchan
+		if chResult.NErr != nil {
+			return "", model.NewAppError("DoPostActionWithCookie", "app.channel.get_for_post.app_error", nil, "", http.StatusInternalServerError).Wrap(chResult.NErr)
+		}
+		channel := chResult.Data
+
+		action := post.GetAction(actionId)
+		if action == nil || action.Integration == nil {
+			return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_id.app_error", nil, fmt.Sprintf("action=%v", action), http.StatusNotFound)
+		}
+
+		upstreamRequest.ChannelId = post.ChannelId
+		upstreamRequest.ChannelName = channel.Name
+		upstreamRequest.TeamId = channel.TeamId
+		upstreamRequest.Type = action.Type
+		// Clone the Context map — the action pointer returned from
+		// post.GetAction may alias post.props state (attachment action) or
+		// the synthesized mm_blocks_actions spec. Mutating it directly
+		// would leak per-click values (selected_option) into the post's
+		// cached integration for subsequent clickers.
+		upstreamRequest.Context = maps.Clone(action.Integration.Context)
+		datasource = action.DataSource
+
+		// Save the original values that may need to be preserved (including selected
+		// Props, i.e. override_username, override_icon_url)
+		for _, key := range model.PostActionRetainPropKeys {
+			value, ok := post.GetProps()[key]
+			if ok {
+				retain[key] = value
+			} else {
+				remove = append(remove, key)
+			}
+		}
+		// Clone — originalProps may be passed to response.Update.SetProps,
+		// which would otherwise have response.Update alias the original
+		// post's props map.
+		originalProps = maps.Clone(post.GetProps())
+		originalIsPinned = post.IsPinned
+		originalHasReactions = post.HasReactions
+
+		if post.RootId == "" {
+			rootPostId = post.Id
+		} else {
+			rootPostId = post.RootId
+		}
+
+		upstreamURL = action.Integration.URL
+	}
+
+	teamChan := make(chan store.StoreResult[*model.Team], 1)
+
+	go func() {
+		defer close(teamChan)
+
+		// Direct and group channels won't have teams.
+		if upstreamRequest.TeamId == "" {
+			return
+		}
+
+		team, err := a.Srv().Store().Team().Get(upstreamRequest.TeamId)
+		teamChan <- store.StoreResult[*model.Team]{Data: team, NErr: err}
+	}()
+
+	ur := <-userChan
+	if ur.NErr != nil {
+		var nfErr *store.ErrNotFound
+		switch {
+		case errors.As(ur.NErr, &nfErr):
+			return "", model.NewAppError("DoPostActionWithCookie", MissingAccountError, nil, "", http.StatusNotFound).Wrap(ur.NErr)
+		default:
+			return "", model.NewAppError("DoPostActionWithCookie", "app.user.get.app_error", nil, "", http.StatusInternalServerError).Wrap(ur.NErr)
+		}
+	}
+	user := ur.Data
+	upstreamRequest.UserName = user.Username
+
+	tr, ok := <-teamChan
+	if ok {
+		if tr.NErr != nil {
+			var nfErr *store.ErrNotFound
+			switch {
+			case errors.As(tr.NErr, &nfErr):
+				return "", model.NewAppError("DoPostActionWithCookie", "app.team.get.find.app_error", nil, "", http.StatusNotFound).Wrap(tr.NErr)
+			default:
+				return "", model.NewAppError("DoPostActionWithCookie", "app.team.get.finding.app_error", nil, "", http.StatusInternalServerError).Wrap(tr.NErr)
+			}
+		}
+
+		team := tr.Data
+		upstreamRequest.TeamName = team.Name
+	}
+
+	if upstreamRequest.Type == model.PostActionTypeSelect {
+		if selectedOption != "" {
+			if upstreamRequest.Context == nil {
+				upstreamRequest.Context = map[string]any{}
+			}
+			upstreamRequest.DataSource = datasource
+			upstreamRequest.Context["selected_option"] = selectedOption
+		}
+	}
+
+	clientTriggerId, _, appErr := upstreamRequest.GenerateTriggerId(a.AsymmetricSigningKey())
+	if appErr != nil {
+		return "", appErr
+	}
+
+	requestJSON, err := json.Marshal(upstreamRequest)
+	if err != nil {
+		return "", model.NewAppError("DoPostActionWithCookie", "api.marshal_error", nil, "", http.StatusInternalServerError).Wrap(err)
+	}
+
+	// Merge per-click query into the upstream URL. This is the canonical
+	// transport for mm_blocks_actions external clicks; for legacy attachment
+	// clicks `query` is empty so this is a no-op. Done before the request
+	// log so operators see the URL actually sent on the wire.
+	if len(query) > 0 {
+		mergedURL, mergeErr := model.MergeQueryIntoURL(upstreamURL, query)
+		if mergeErr != nil {
+			return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.merge_query.app_error", nil, "", http.StatusBadRequest).Wrap(mergeErr)
+		}
+		upstreamURL = mergedURL
+	}
+
+	// Log request, regardless of whether destination is internal or external
+	rctx.Logger().Info("DoPostActionWithCookie POST request, through DoActionRequest",
+		mlog.String("url", upstreamURL),
+		mlog.String("user_id", upstreamRequest.UserId),
+		mlog.String("post_id", upstreamRequest.PostId),
+		mlog.String("channel_id", upstreamRequest.ChannelId),
+		mlog.String("team_id", upstreamRequest.TeamId),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*a.Config().ServiceSettings.OutgoingIntegrationRequestsTimeout)*time.Second)
+	defer cancel()
+	resp, appErr := a.DoActionRequest(rctx.WithContext(ctx), upstreamURL, requestJSON)
+	if appErr != nil {
+		return "", appErr
+	}
+	defer resp.Body.Close()
+
+	var response model.PostActionIntegrationResponse
+	limitedReader := io.LimitReader(resp.Body, MaxIntegrationResponseSize)
+	respBytes, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	if len(respBytes) > 0 {
+		if err = json.Unmarshal(respBytes, &response); err != nil {
+			return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+		}
+	}
+
+	if response.Update != nil {
+		response.Update.Id = postID
+
+		// Restore the post attributes and Props that need to be preserved
+		if response.Update.GetProps() == nil {
+			response.Update.SetProps(originalProps)
+		} else {
+			for key, value := range retain {
+				response.Update.AddProp(key, value)
+			}
+			for _, key := range remove {
+				response.Update.DelProp(key)
+			}
+		}
+		response.Update.IsPinned = originalIsPinned
+		response.Update.HasReactions = originalHasReactions
+
+		// Validate mm_blocks_actions on update responses. Since
+		// AllowMmBlocksActionsUpdate bypasses the non-integration guard in
+		// UpdatePost, and mm_blocks_actions are not in
+		// PostActionRetainPropKeys, a bad response would otherwise
+		// permanently replace the post's valid mm_blocks_actions. Keep the
+		// original value (if any) and log a warning so integration authors
+		// can diagnose.
+		//
+		// Contract (matches the attachments contract): a plugin update
+		// response that returns a non-nil Props map MUST echo
+		// mm_blocks_actions back if it wants the buttons to survive.
+		// Omitting the key drops the prop. This is intentional symmetry
+		// with attachments and matches the behavior in the mm_blocks
+		// framework PR.
+		if response.Update.GetProp(model.PostPropsMmBlocksActions) != nil {
+			if originalProps[model.PostPropsMmBlocksActions] == nil {
+				rctx.Logger().Info("Dropping mm_blocks_actions from plugin update response: original post had none",
+					mlog.String("post_id", postID),
+					mlog.String("url", upstreamURL),
+				)
+				response.Update.DelProp(model.PostPropsMmBlocksActions)
+			} else if err := model.ValidateMmBlocksActions(response.Update); err != nil {
+				rctx.Logger().Info("Restoring original mm_blocks_actions: plugin update response was invalid",
+					mlog.String("post_id", postID),
+					mlog.String("url", upstreamURL),
+					mlog.Err(err),
+				)
+				// originalProps came from maps.Clone(post.GetProps())
+				// which is a shallow clone — the nested
+				// mm_blocks_actions map is still aliased to
+				// post.Props. Deep-clone before reattaching so a
+				// later mutation through response.Update can't
+				// reach back into the original post's prop map.
+				response.Update.AddProp(model.PostPropsMmBlocksActions, cloneMmBlocksActionsProp(originalProps[model.PostPropsMmBlocksActions]))
+			}
+		}
+
+		if _, _, appErr = a.UpdatePost(rctx, response.Update, &model.UpdatePostOptions{SafeUpdate: false, AllowMmBlocksActionsUpdate: true}); appErr != nil {
+			return "", appErr
+		}
+	}
+
+	if response.EphemeralText != "" {
+		ephemeralPost := &model.Post{
+			Message:   response.EphemeralText,
+			ChannelId: upstreamRequest.ChannelId,
+			RootId:    rootPostId,
+			UserId:    userID,
+		}
+
+		if !response.SkipSlackParsing {
+			ephemeralPost.Message = model.ParseSlackLinksToMarkdown(response.EphemeralText)
+		}
+
+		for key, value := range retain {
+			ephemeralPost.AddProp(key, value)
+		}
+		a.SendEphemeralPost(rctx, userID, ephemeralPost)
+	}
+
+	return clientTriggerId, nil
+}
+
+// DoActionRequest performs an HTTP POST request to an integration's action endpoint.
+// Caller must consume and close returned http.Response as necessary.
+// For internal requests, requests are routed directly to a plugin ServerHTTP hook
+func (a *App) DoActionRequest(rctx request.CTX, rawURL string, body []byte) (*http.Response, *model.AppError) {
+	inURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, model.NewAppError("DoActionRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	rawURLPath := path.Clean(rawURL)
+	if strings.HasPrefix(rawURLPath, "/plugins/") || strings.HasPrefix(rawURLPath, "plugins/") {
+		return a.DoLocalRequest(rctx, rawURLPath, body)
+	}
+
+	req, err := http.NewRequestWithContext(rctx.Context(), "POST", rawURL, bytes.NewReader(body))
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			rctx.Logger().Info("Outgoing Integration Action request timed out. Consider increasing ServiceSettings.OutgoingIntegrationRequestsTimeout.")
+		}
+		return nil, model.NewAppError("DoActionRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	httpClient := a.getPostActionClient(rctx, inURL, req)
+
+	resp, httpErr := httpClient.Do(req)
+	if httpErr != nil {
+		return nil, model.NewAppError("DoActionRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(httpErr)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return resp, model.NewAppError("DoActionRequest", "api.post.do_action.action_integration.app_error", nil, fmt.Sprintf("status=%v", resp.StatusCode), http.StatusBadRequest)
+	}
+
+	return resp, nil
+}
+
+func (a *App) getPostActionClient(rctx request.CTX, inURL *url.URL, req *http.Request) *http.Client {
+	// Allow access to plugin routes for action buttons
+	var httpClient *http.Client
+	subpath, _ := utils.GetSubpathFromConfig(a.Config())
+	siteURL, _ := url.Parse(*a.Config().ServiceSettings.SiteURL)
+	if inURL.Hostname() == siteURL.Hostname() && strings.HasPrefix(path.Clean(inURL.Path), path.Join(subpath, "plugins")) {
+		req.Header.Set(model.HeaderAuth, "Bearer "+rctx.Session().Token)
+		httpClient = a.HTTPService().MakeClient(true)
+	} else {
+		httpClient = a.HTTPService().MakeClient(false)
+	}
+	return httpClient
+}
+
+type LocalResponseWriter struct {
+	data    []byte
+	headers http.Header
+	status  int
+}
+
+func (w *LocalResponseWriter) Header() http.Header {
+	if w.headers == nil {
+		w.headers = make(http.Header)
+	}
+	return w.headers
+}
+
+func (w *LocalResponseWriter) Write(bytes []byte) (int, error) {
+	w.data = make([]byte, len(bytes))
+	copy(w.data, bytes)
+	return len(w.data), nil
+}
+
+func (w *LocalResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+}
+
+func (a *App) doPluginRequest(rctx request.CTX, method, rawURL string, values url.Values, body []byte) (*http.Response, *model.AppError) {
+	return a.ch.doPluginRequest(rctx, method, rawURL, values, body)
+}
+
+func (ch *Channels) doPluginRequest(rctx request.CTX, method, rawURL string, values url.Values, body []byte) (*http.Response, *model.AppError) {
+	rawURL = strings.TrimPrefix(rawURL, "/")
+	inURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, model.NewAppError("doPluginRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+	result := strings.Split(path.Clean(inURL.Path), "/")
+	if len(result) < 2 {
+		return nil, model.NewAppError("doPluginRequest", "api.post.do_action.action_integration.app_error", nil, "err=Unable to find pluginId", http.StatusBadRequest)
+	}
+
+	if result[0] != "plugins" {
+		return nil, model.NewAppError("doPluginRequest", "api.post.do_action.action_integration.app_error", nil, "err=plugins not in path", http.StatusBadRequest)
+	}
+
+	pluginID := result[1]
+
+	path := strings.TrimPrefix(inURL.Path, "plugins/"+pluginID)
+
+	base, err := url.Parse(path)
+	if err != nil {
+		return nil, model.NewAppError("doPluginRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	// merge the rawQuery params (if any) with the function's provided values
+	rawValues := inURL.Query()
+	if len(rawValues) != 0 {
+		if values == nil {
+			values = make(url.Values)
+		}
+		for k, vs := range rawValues {
+			for _, v := range vs {
+				values.Add(k, v)
+			}
+		}
+	}
+	if values != nil {
+		base.RawQuery = values.Encode()
+	}
+
+	w := &LocalResponseWriter{}
+	r, err := http.NewRequest(method, base.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, model.NewAppError("doPluginRequest", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+	r.Header.Set("Mattermost-User-Id", rctx.Session().UserId)
+	r.Header.Set(model.HeaderAuth, "Bearer "+rctx.Session().Token)
+	params := make(map[string]string)
+	params["plugin_id"] = pluginID
+	r = mux.SetURLVars(r, params)
+
+	ch.ServePluginRequest(w, r)
+
+	resp := &http.Response{
+		StatusCode: w.status,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     w.headers,
+		Body:       io.NopCloser(bytes.NewReader(w.data)),
+	}
+	if resp.StatusCode == 0 {
+		resp.StatusCode = http.StatusOK
+	}
+
+	return resp, nil
+}
+
+type MailToLinkContent struct {
+	MetricId      string `json:"metric_id"`
+	MailRecipient string `json:"mail_recipient"`
+	MailCC        string `json:"mail_cc"`
+	MailSubject   string `json:"mail_subject"`
+	MailBody      string `json:"mail_body"`
+}
+
+func (mlc *MailToLinkContent) ToJSON() string {
+	b, _ := json.Marshal(mlc)
+	return string(b)
+}
+
+func (a *App) DoLocalRequest(rctx request.CTX, rawURL string, body []byte) (*http.Response, *model.AppError) {
+	return a.doPluginRequest(rctx, "POST", rawURL, nil, body)
+}
+
+func (a *App) OpenInteractiveDialog(rctx request.CTX, request model.OpenDialogRequest) *model.AppError {
+	timeout := time.Duration(*a.Config().ServiceSettings.OutgoingIntegrationRequestsTimeout) * time.Second
+	clientTriggerId, userID, appErr := request.DecodeAndVerifyTriggerId(a.AsymmetricSigningKey(), timeout)
+	if appErr != nil {
+		return appErr
+	}
+
+	request.TriggerId = clientTriggerId
+
+	if dialogErr := request.IsValid(); dialogErr != nil {
+		rctx.Logger().Warn("Interactive dialog is invalid", mlog.Err(dialogErr))
+	}
+
+	jsonRequest, err := json.Marshal(request)
+	if err != nil {
+		a.ch.srv.Log().Warn("Error encoding request", mlog.Err(err))
+	}
+
+	message := model.NewWebSocketEvent(model.WebsocketEventOpenDialog, "", "", userID, nil, "")
+	message.Add("dialog", string(jsonRequest))
+	a.Publish(message)
+
+	return nil
+}
+
+func (a *App) SubmitInteractiveDialog(rctx request.CTX, request model.SubmitDialogRequest) (*model.SubmitDialogResponse, *model.AppError) {
+	url := request.URL
+	request.URL = ""
+
+	// Preserve Type field for field refresh functionality, otherwise default to dialog_submission
+	if request.Type != "refresh" {
+		request.Type = "dialog_submission"
+	}
+
+	b, err := json.Marshal(request)
+	if err != nil {
+		return nil, model.NewAppError("SubmitInteractiveDialog", "app.submit_interactive_dialog.json_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	// Log request, regardless of whether destination is internal or external
+	rctx.Logger().Info("SubmitInteractiveDialog POST request, through DoActionRequest",
+		mlog.String("url", url),
+		mlog.String("user_id", request.UserId),
+		mlog.String("channel_id", request.ChannelId),
+		mlog.String("team_id", request.TeamId),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*a.Config().ServiceSettings.OutgoingIntegrationRequestsTimeout)*time.Second)
+	defer cancel()
+	resp, appErr := a.DoActionRequest(rctx.WithContext(ctx), url, b)
+	if appErr != nil {
+		return nil, appErr
+	}
+	defer resp.Body.Close()
+
+	// Limit response size to prevent OOM attacks
+	limitedReader := io.LimitReader(resp.Body, MaxDialogResponseSize)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, model.NewAppError("SubmitInteractiveDialog", "app.submit_interactive_dialog.read_body_error", nil, "", http.StatusInternalServerError).Wrap(err)
+	}
+
+	var response model.SubmitDialogResponse
+	if len(body) == 0 {
+		// Don't fail, an empty response is acceptable
+		return &response, nil
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, model.NewAppError("SubmitInteractiveDialog", "app.submit_interactive_dialog.decode_json_error", nil, "", http.StatusInternalServerError).Wrap(err)
+	}
+
+	// Validate the response
+	if err := response.IsValid(); err != nil {
+		if strings.Contains(err.Error(), "invalid form") {
+			rctx.Logger().Info("Interactive dialog is invalid", mlog.Err(err))
+		} else {
+			return nil, model.NewAppError("SubmitInteractiveDialog", "app.submit_interactive_dialog.invalid_response", nil, err.Error(), http.StatusBadRequest)
+		}
+	}
+
+	return &response, nil
+}
+
+func (a *App) LookupInteractiveDialog(rctx request.CTX, request model.SubmitDialogRequest) (*model.LookupDialogResponse, *model.AppError) {
+	url := request.URL
+	request.URL = ""
+	request.Type = "dialog_lookup"
+
+	b, err := json.Marshal(request)
+	if err != nil {
+		return nil, model.NewAppError("LookupInteractiveDialog", "app.lookup_interactive_dialog.json_error", nil, "", http.StatusBadRequest).Wrap(err)
+	}
+
+	// Log request, regardless of whether destination is internal or external
+	rctx.Logger().Info("LookupInteractiveDialog POST request, through DoActionRequest",
+		mlog.String("url", url),
+		mlog.String("user_id", request.UserId),
+		mlog.String("channel_id", request.ChannelId),
+		mlog.String("team_id", request.TeamId),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*a.Config().ServiceSettings.OutgoingIntegrationRequestsTimeout)*time.Second)
+	defer cancel()
+	resp, appErr := a.DoActionRequest(rctx.WithContext(ctx), url, b)
+	if appErr != nil {
+		return nil, appErr
+	}
+	defer resp.Body.Close()
+
+	// Limit response size to prevent OOM attacks
+	limitedReader := io.LimitReader(resp.Body, MaxDialogResponseSize)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, model.NewAppError("LookupInteractiveDialog", "app.lookup_interactive_dialog.read_body_error", nil, "", http.StatusInternalServerError).Wrap(err)
+	}
+
+	var response model.LookupDialogResponse
+	if len(body) == 0 {
+		// Return empty response if no data
+		return &response, nil
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, model.NewAppError("LookupInteractiveDialog", "app.lookup_interactive_dialog.decode_json_error", nil, "", http.StatusInternalServerError).Wrap(err)
+	}
+
+	return &response, nil
+}
