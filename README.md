@@ -6,56 +6,6 @@ Agora is a realtime, **agent-native development environment** built from the gro
 
 ---
 
-## ▶ Quickstart — run Agora (read this first)
-
-**One command brings up the whole room** (server + our webapp + the Agora plugin + channels + a share link). You do **not** need to build anything by hand.
-
-### 1. Install the prerequisites (once)
-| Your OS | Install |
-|---|---|
-| **Windows** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) **and** WSL Ubuntu — open PowerShell and run `wsl --install -d Ubuntu-22.04`, then reboot. |
-| **macOS** | [Docker Desktop](https://www.docker.com/products/docker-desktop/). First run only: `bash agora/scripts/fork/bootstrap.sh` (installs Node 24). |
-| **Linux** | Docker Engine + Docker Compose. First run only: `bash agora/scripts/fork/bootstrap.sh`. |
-
-Make sure **Docker Desktop is running** before you start.
-
-### 2. Open a terminal and go to this folder
-```
-cd <the folder this README is in>     # the repo root
-```
-
-### 3. Run the one command for your OS
-| Your OS | Run | In what |
-|---|---|---|
-| **Windows** | `.\up.bat` | PowerShell **or** Command Prompt |
-| **macOS / Linux** | `./up.sh` | Terminal (bash) |
-
-**First run takes ~5–8 minutes** — it compiles the web client from source (that's the slow part, not your machine). When it finishes you'll see:
-```
-  OK - Agora is up
-    Local:  http://localhost:8066
-    Share:  https://something.trycloudflare.com   (anyone can join while this runs)
-    Login:  agoraadmin / Agora!admin1   (team: agora)
-```
-
-### 4. Open it
-Go to **http://localhost:8066**, log in with **`agoraadmin` / `Agora!admin1`**, pick the **agora** team. You'll land in a room with **Welcome, Features, Code Review, 🎙 Voice Comms, 🧭 Orchestrator, ⚙️ CI/CD, 🐛 Debug, 🔎 Audit** channels.
-
-### Re-running (fast)
-You already built it once — don't rebuild the web client every time:
-| Goal | Windows | macOS / Linux |
-|---|---|---|
-| **Fast re-serve** (no client rebuild) | `.\up.bat -NoBuild` | `AGORA_NOBUILD=1 ./up.sh` |
-| **Localhost only** (no public link) | `.\up.bat -Local` | `AGORA_LOCAL=1 ./up.sh` |
-| **Skip the plugin step** | `.\up.bat -SkipPlugin` | `AGORA_SKIP_PLUGIN=1 ./up.sh` |
-
-### If something's wrong
-- **"Docker Desktop isn't running"** → start Docker Desktop, wait for the whale icon, retry.
-- **Windows "WSL distro not found"** → `wsl --install -d Ubuntu-22.04`, reboot, retry.
-- **Port 8066 busy** → another stack is up; the script stops foreign stacks on that port automatically, just re-run.
-
----
-
 ## Inspiration
 
 Modern software development has exploded into chaos with the rise of AI agents. Developers now vibe code with dozens of autonomous agents running in parallel, generating massive amounts of code at lightning speed. Yet our tools are still stuck in the past. Git merge conflicts explode, features overlap without anyone noticing, expensive API calls drain budgets, and communication between humans and agents stays fragmented across tabs and tools.
@@ -102,32 +52,90 @@ Deeper 3D presence features, persistent agent memory across sessions, and open p
 
 ---
 
-## Run it
+# Setup guide
 
-One launcher, one host. Clone the repo, then bring up everything (build, server, share link, agent connector) with a single command from the repo root.
+> **The flow is the same on every OS** — Windows, macOS, Linux. Same steps, same result, same single command-that-does-everything. The **only** difference is the launcher name: Windows runs `up.bat`, macOS/Linux run `up.sh`. Everything else below is identical.
 
-**Prerequisites:** Docker Desktop. On Windows, WSL2 (Ubuntu) — the launcher uses it to build the web client.
+There is **one command**. It builds the web client, starts the server with our client, installs the Agora plugin (all the backend: rooms, roles, codespace, voice), provisions the room and channels, opens a public share link, and starts the local agent connector. You never build anything by hand.
+
+## 0. Prerequisites (install once, ~10–15 min the very first time)
+
+| Everyone | Windows also needs | macOS / Linux also needs |
+|---|---|---|
+| **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** installed and **running** (wait for the whale icon to go steady — ~30s after launch). | **WSL2 Ubuntu** — open PowerShell as admin: `wsl --install -d Ubuntu-22.04`, then **reboot** (~5 min + reboot). The launcher uses it to compile the web client. | On the **first run only**, the launcher installs Node 24 for you via `bash agora/scripts/fork/bootstrap.sh` (~2 min). |
+
+You do **not** need Go, Node, make, or Git Bash installed yourself — the launcher handles all of it.
+
+## 1. Get the code (~1–2 min)
 
 ```bash
 git clone https://github.com/Yxiang-828/Agora-spark-Hackathon.git
 cd Agora-spark-Hackathon
-
-# Windows
-up.bat
-
-# macOS / Linux
-chmod +x up.sh && ./up.sh
 ```
 
-Then open the printed URL and log in. The launcher builds the web client, brings up the server with the Agora client, opens a public share link, and starts the local agent connector.
+## 2. Run the one command
+
+Make sure **Docker Desktop is running first.** Then, from the repo root:
+
+| OS | Command | Run it in |
+|---|---|---|
+| **Windows** | `.\up.bat` | PowerShell **or** Command Prompt |
+| **macOS / Linux** | `./up.sh` | Terminal (bash) |
+
+That's it. Now it works through these phases — **here's exactly what it's doing and how long each takes on a first run:**
+
+| Phase | What's happening | Expected wait (first run) | On re-runs |
+|---|---|---|---|
+| 1. Prep | (Windows) writes WSL networking config + restarts WSL | ~15s (Windows only, once) | skipped |
+| 2. Sync | copies the source into the build environment | ~30–60s | ~10s |
+| 3. **Build web client** | compiles the React/TypeScript app — **this is the slow part, and it's the code compiling, not your machine being slow** | **~4–6 min** | skipped with `-NoBuild` |
+| 4. Pull + start server | downloads the server image (first time only) and boots Postgres + the server | ~1–3 min (first pull), ~30s after | ~30s |
+| 5. **Build + install plugin** | compiles the Agora backend (rooms, roles, codespace, voice) and installs it | **~2–4 min** (first build) | ~1 min, or skip with `-SkipPlugin` |
+| 6. Share link | opens a public Cloudflare URL anyone can join | ~15s | ~15s |
+| 7. Provision + connector | creates the team, admin, channels, brand; starts your local agent connector | ~15s | ~15s |
+
+**Total first run: ~8–12 minutes.** Grab a coffee — the long bars are Phase 3 and Phase 5 compiling. It is normal for it to sit quietly during those.
+
+## 3. When it's ready
+
+You'll see this banner in the terminal:
+
+```
+  OK - Agora is up
+    Local:  http://localhost:8066
+    Share:  https://something.trycloudflare.com   (anyone can join while this runs)
+    Login:  agoraadmin / Agora!admin1   (team: agora)
+```
+
+Open **http://localhost:8066**, log in with **`agoraadmin` / `Agora!admin1`**, and pick the **agora** team. You'll land in a laid-out room with **Welcome, Features, Code Review, 🎙 Voice Comms, 🧭 Orchestrator, ⚙️ CI/CD, 🐛 Debug, 🔎 Audit** channels. Share the `trycloudflare.com` link and teammates join the same room while your machine is running.
+
+## 4. Re-running (fast — seconds to ~1 min)
+
+You already built it once, so don't rebuild the web client every time. Same flags on every OS, just expressed per launcher:
+
+| Goal | Windows | macOS / Linux |
+|---|---|---|
+| **Fast re-serve** (skip the ~5 min client build) | `.\up.bat -NoBuild` | `AGORA_NOBUILD=1 ./up.sh` |
+| **Localhost only** (no public link, snappiest) | `.\up.bat -Local` | `AGORA_LOCAL=1 ./up.sh` |
+| **Skip the plugin step** | `.\up.bat -SkipPlugin` | `AGORA_SKIP_PLUGIN=1 ./up.sh` |
+
+## 5. If something's wrong
+
+- **"Docker Desktop isn't running"** → start Docker Desktop, wait ~30s for the whale icon to steady, re-run.
+- **Windows "WSL distro not found"** → `wsl --install -d Ubuntu-22.04`, reboot, re-run.
+- **Port 8066 / 8443 busy** → another stack is using it; the launcher auto-stops foreign stacks on those ports, so just re-run.
+- **It seems stuck for minutes during "build"** → that's expected (Phase 3 / Phase 5). First runs are slow; let it finish.
+- **The 3D Room shows "open a channel first" / blank** → make sure the plugin step ran (don't use `-SkipPlugin` on the first run).
+
+---
 
 ## Repo layout
 
 | Path | What |
 |---|---|
 | `agora/` | Everything Agora — connector (local CLI agents), orchestrator, codespace backend, voice, deploy + the one-shot launcher scripts |
-| `webapp/` | The web client (native Agora surfaces: channels, tabs, codespace, voice, panels) |
+| `webapp/` | The web client (native Agora surfaces: channels, tabs, codespace, voice, 3D room, panels) |
 | `server/` | The room server |
-| `up.bat` / `up.sh` | The single entry point |
+| `up.bat` / `up.sh` | The single entry point — same flow on every OS |
 
 Built on a fork of [Mattermost](https://github.com/mattermost/mattermost) (MIT-licensed core).
